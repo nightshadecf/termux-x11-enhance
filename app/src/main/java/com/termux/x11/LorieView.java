@@ -938,7 +938,7 @@ public class LorieView extends SurfaceView implements InputStub {
     }
     @FastNative public native boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown, int a);
     @FastNative public native void sendTextEvent(byte[] text);
-    @CriticalNative public static native boolean requestConnection();
+    public static native boolean requestConnection(int port);
 
     static {
         System.loadLibrary("Xlorie");

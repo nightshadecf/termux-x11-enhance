@@ -89,4 +89,7 @@
         <item>reverse portrait</item>
         <item>reverse landscape</item>
     </string-array>
+    <string-array name="displayList">
+        <item>1</item>
+    </string-array>
 </resources>

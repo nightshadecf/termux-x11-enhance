@@ -263,8 +263,12 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
 
                 if (p instanceof ListPreference) {
                     ListPreference list = (ListPreference) p;
-                    list.setEntries(prefs.keys.get(p.getKey()).asList().getEntries());
-                    list.setEntryValues(prefs.keys.get(p.getKey()).asList().getValues());
+                    if ("selectedDisplay".contentEquals(p.getKey())) {
+                        updateSelectedDisplayPreference(list);
+                    } else {
+                        list.setEntries(prefs.keys.get(p.getKey()).asList().getEntries());
+                        list.setEntryValues(prefs.keys.get(p.getKey()).asList().getValues());
+                    }
                     list.setSummaryProvider(ListPreference.SimpleSummaryProvider.getInstance());
                 }
             }
@@ -326,8 +330,12 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
 
             for (String key : prefs.keys.keySet()) {
                 Preference p = findPreference(key);
-                if (p != null)
+                if (p != null) {
+                    if (p instanceof ListPreference && "selectedDisplay".contentEquals(key)) {
+                        updateSelectedDisplayPreference((ListPreference) p);
+                    }
                     onSetInitialValue(p);
+                }
             }
 
             String displayResMode = prefs.displayResolutionMode.get();
@@ -354,6 +362,30 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
                     && ContextCompat.checkSelfPermission(requireContext(), POST_NOTIFICATIONS) == PERMISSION_DENIED;
             setVisible("requestNotificationPermission", requestNotificationPermissionVisible);
+        }
+
+        private void updateSelectedDisplayPreference(ListPreference list) {
+            java.util.Set<Integer> displays = new java.util.HashSet<>();
+            if (MainActivity.getInstance() != null) {
+                displays.addAll(MainActivity.getInstance().getAvailableDisplays());
+            }
+            if (displays.isEmpty()) {
+                displays.add(1);
+            }
+            try {
+                displays.add(Integer.parseInt(prefs.selectedDisplay.get()));
+            } catch (NumberFormatException ignored) {}
+
+            Integer[] sorted = displays.toArray(new java.lang.Integer[0]);
+            java.util.Arrays.sort(sorted);
+            String[] entries = new String[sorted.length];
+            String[] values = new String[sorted.length];
+            for (int i = 0; i < sorted.length; i++) {
+                entries[i] = "Display :" + sorted[i];
+                values[i] = String.valueOf(sorted[i]);
+            }
+            list.setEntries(entries);
+            list.setEntryValues(values);
         }
 
         /** @noinspection SameParameterValue*/

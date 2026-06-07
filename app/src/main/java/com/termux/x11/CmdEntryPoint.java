@@ -32,7 +32,19 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public static final String ACTION_START = "com.termux.x11.CmdEntryPoint.ACTION_START";
     static final Handler handler;
     public static Context ctx;
-    private final Intent intent = createIntent();
+    private final int mDisplayNumber;
+    private Intent intent;
+
+    public static int getDisplayNumber(String[] args) {
+        for (String arg : args) {
+            if (arg != null && arg.startsWith(":") && arg.length() > 1) {
+                try {
+                    return Integer.parseInt(arg.substring(1));
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+        return 1;
+    }
 
     /**
      * Command-line entry point.
@@ -46,6 +58,8 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     }
 
     CmdEntryPoint(String[] args) {
+        mDisplayNumber = getDisplayNumber(args);
+        intent = createIntent();
         if (!start(args))
             System.exit(1);
 
@@ -64,6 +78,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
         bundle.putBinder(null, this);
 
         Intent intent = new Intent(ACTION_START);
+        intent.putExtra("display", mDisplayNumber);
         intent.putExtra(null, bundle);
         intent.setPackage(targetPackage);
 
@@ -134,7 +149,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     }
 
     void spawnListeningThread() {
-        new Thread(this::listenForConnections).start();
+        new Thread(() -> listenForConnections(7892 + mDisplayNumber - 1)).start();
     }
 
     /** @noinspection DataFlowIssue*/
@@ -171,7 +186,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public native ParcelFileDescriptor getXConnection();
     public native ParcelFileDescriptor getLogcatOutput();
     private static native boolean connected();
-    private native void listenForConnections();
+    private native void listenForConnections(int port);
 
     static {
         try {

@@ -526,9 +526,9 @@ Java_com_termux_x11_CmdEntryPoint_connected(__unused JNIEnv *env, __unused jclas
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_CmdEntryPoint_listenForConnections(JNIEnv *env, jobject thiz) {
+Java_com_termux_x11_CmdEntryPoint_listenForConnections(JNIEnv *env, jobject thiz, jint port) {
     int server_fd, client, count;
-    struct sockaddr_in address = { .sin_family = AF_INET, .sin_addr = { .s_addr = INADDR_ANY }, .sin_port = htons(PORT) };
+    struct sockaddr_in address = { .sin_family = AF_INET, .sin_addr = { .s_addr = INADDR_ANY }, .sin_port = htons(port) };
     int addrlen = sizeof(address);
     jmethodID sendBroadcast = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, thiz), "sendBroadcast", "()V");
     uint8_t buffer[512] = {0};

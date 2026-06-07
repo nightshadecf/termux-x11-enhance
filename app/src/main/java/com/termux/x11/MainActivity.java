@@ -79,6 +79,21 @@ public class MainActivity extends AppCompatActivity {
     FrameLayout frm;
     private TouchInputHandler mInputHandler;
     protected ICmdEntryInterface service = null;
+    private final java.util.Map<Integer, ICmdEntryInterface> mAvailableDisplays = new java.util.concurrent.ConcurrentHashMap<>();
+    private int connectedDisplay = -1;
+
+    public java.util.Set<Integer> getAvailableDisplays() {
+        return mAvailableDisplays.keySet();
+    }
+
+    private void updateDisplayPreferences() {
+        sendBroadcast(new Intent(ACTION_PREFERENCES_CHANGED) {{
+            putExtra("key", "selectedDisplay");
+            putExtra("fromBroadcast", true);
+            setPackage("com.termux.x11");
+        }});
+    }
+
     public TermuxX11ExtraKeys mExtraKeys;
     private Notification mNotification;
     private final int mNotificationId = 7892;
@@ -499,12 +514,35 @@ public class MainActivity extends AppCompatActivity {
     }
 
     void onReceiveConnection(Intent intent) {
-        Bundle bundle = intent == null ? null : intent.getBundleExtra(null);
-        IBinder ibinder = bundle == null ? null : bundle.getBinder(null);
-        if (ibinder == null)
-            return;
+        if (intent == null) return;
+        int displayNum = intent.getIntExtra("display", 1);
+        int selectedDisplay = 1;
+        try {
+            selectedDisplay = Integer.parseInt(prefs.selectedDisplay.get());
+        } catch (NumberFormatException ignored) {}
 
-        service = ICmdEntryInterface.Stub.asInterface(ibinder);
+        Bundle bundle = intent.getBundleExtra(null);
+        IBinder ibinder = bundle == null ? null : bundle.getBinder(null);
+        if (ibinder == null) {
+            return;
+        }
+
+        ICmdEntryInterface srv = ICmdEntryInterface.Stub.asInterface(ibinder);
+        mAvailableDisplays.put(displayNum, srv);
+        try {
+            ibinder.linkToDeath(() -> {
+                mAvailableDisplays.remove(displayNum);
+                runOnUiThread(this::updateDisplayPreferences);
+            }, 0);
+        } catch (RemoteException ignored) {}
+        updateDisplayPreferences();
+
+        if (displayNum != selectedDisplay) {
+            // Not the selected display, ignore this connection request
+            return;
+        }
+
+        service = srv;
         try {
             service.asBinder().linkToDeath(() -> {
                 service = null;
@@ -532,13 +570,32 @@ public class MainActivity extends AppCompatActivity {
     }
 
     boolean tryConnect() {
-        if (LorieView.connected())
-            return false;
+        int selectedDisplay = 1;
+        try {
+            selectedDisplay = Integer.parseInt(prefs.selectedDisplay.get());
+        } catch (NumberFormatException ignored) {}
+
+        if (LorieView.connected()) {
+            if (connectedDisplay != selectedDisplay) {
+                Log.d("MainActivity", "Selected display changed from " + connectedDisplay + " to " + selectedDisplay + ". Reconnecting.");
+                LorieView.connect(-1);
+                service = null;
+                if (mAvailableDisplays.containsKey(selectedDisplay)) {
+                    service = mAvailableDisplays.get(selectedDisplay);
+                }
+            } else {
+                return false;
+            }
+        }
 
         if (service == null) {
-            boolean sent = LorieView.requestConnection();
-            handler.postDelayed(this::tryConnect, 250);
-            return true;
+            if (mAvailableDisplays.containsKey(selectedDisplay)) {
+                service = mAvailableDisplays.get(selectedDisplay);
+            } else {
+                boolean sent = LorieView.requestConnection(7892 + selectedDisplay - 1);
+                handler.postDelayed(this::tryConnect, 250);
+                return true;
+            }
         }
 
         try {
@@ -546,6 +603,7 @@ public class MainActivity extends AppCompatActivity {
             if (fd != null) {
                 Log.v("MainActivity", "Extracting X connection socket.");
                 LorieView.connect(fd.detachFd());
+                connectedDisplay = selectedDisplay;
                 finishStartupDraw();
                 getLorieView().triggerCallback();
                 clientConnectedStateChanged();
@@ -572,6 +630,7 @@ public class MainActivity extends AppCompatActivity {
     @SuppressLint("UnsafeIntentLaunch")
     void onPreferencesChangedCallback() {
         prefs.recheckStoringSecondaryDisplayPreferences();
+        tryConnect();
 
         onWindowFocusChanged(hasWindowFocus());
         LorieView lorieView = getLorieView();
